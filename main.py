@@ -51,7 +51,7 @@ def get_login_session() -> requests.Session:
         raise Exception("Could not login to qBittorrent")
     logging.info("Logged in to qBittorrent")
     return session
-    
+
 
 def get_completed_torrents(session: requests.Session) -> List[Dict[str, Any]]:
     params = {
@@ -86,7 +86,7 @@ def update_nextcloud_file(session: requests.Session, torrent_hash: str) -> None:
     nextcloud_container_name = str(os.environ.get("NEXTCLOUD_CONTAINER_NAME"))
 
     occ_path = "/var/www/html/occ"
-    rescan_path = os.path.join("/var/www/html/data", nextcloud_user, "files", nextcloud_rel_downloads_path)
+    rescan_path = os.path.join("var", "www", "html", "data", nextcloud_user, "files", nextcloud_rel_downloads_path)
 
     client = docker.from_env()
     container = client.containers.get("nextcloud")
@@ -98,7 +98,7 @@ def update_nextcloud_file(session: requests.Session, torrent_hash: str) -> None:
     if retval.exit_code != 0:
         logging.error(f"Failed to rescan {rescan_path}: {retval.output[:100]}")
         raise Exception(f"Failed to rescan {rescan_path}")
-    
+
 
 def run_forever():
     check_env()
