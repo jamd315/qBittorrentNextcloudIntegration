@@ -1,0 +1,21 @@
+version: "3"
+
+
+services:
+  qbnc:
+    build: .
+    container_name: qbnc
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - QBITTORRENT_URL=qbittorrent.${MAIN_URL}
+      - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
+      - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+      - NEXTCLOUD_USER=${NEXTCLOUD_USER}
+      - NEXTCLOUD_REL_PATH=media/downloads
+    restart: always
+
+
+networks:
+  web:
+    external: true

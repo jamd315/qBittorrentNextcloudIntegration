@@ -2,6 +2,7 @@
 import logging
 import os
 import shlex
+import signal
 import time
 from typing import List, Dict, Any, Optional
 
@@ -18,6 +19,17 @@ logging.basicConfig(
 )
 
 BASE_URL = str(os.environ.get("QBITTORRENT_URL", ""))
+if not BASE_URL.startswith("http://") or not BASE_URL.startswith("https://"):
+    BASE_URL = "http://" + BASE_URL
+
+RUN_FLAG = True
+
+def exit_handler(sig, frame) -> None:
+    logging.info("Received exit signal")
+    RUN_FLAG = False
+
+signal.signal(signal.SIGTERM, exit_handler)
+
 
 def check_env() -> None:
     expected_env_vars = [
@@ -98,25 +110,29 @@ def update_nextcloud_files() -> None:
     if retval.exit_code != 0:
         logging.error(f"Failed to rescan {rescan_path}: {retval.output[:100]}")
         raise Exception(f"Failed to rescan {rescan_path}")
+    logging.info("Rescan command sent")
 
 
 def run_forever():
-    logging.info("Starting run")
+    logging.info("Starting qbnc run_forever")
     check_env()
     logging.info("Env check passed")
     session_start = time.time()
+    last_run = 0
     session = get_login_session()  # Expires after 60m
-    while True:
+    while RUN_FLAG:
         if time.time() - session_start > 3300:  # 55m
             session = get_login_session()
             session_start = time.time()
-        torrents = get_completed_torrents(session)
-        for torrent in torrents:
-            mark_torrent_as_done(session, torrent["hash"])
-        if torrents:
-            update_nextcloud_files()
-        logging.info("Finished run")
-        time.sleep(60)
+        if time.time() - last_run > 15:  # Run every n seconds
+            torrents = get_completed_torrents(session)
+            for torrent in torrents:
+                mark_torrent_as_done(session, torrent["hash"])
+            if torrents:
+                update_nextcloud_files()
+            last_run = time.time()
+        time.sleep(1)  # Fast-ish loop so we can exit
+    print("Exiting...")
 
 
 if __name__ == "__main__":
