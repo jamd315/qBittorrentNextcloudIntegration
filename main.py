@@ -80,7 +80,7 @@ def mark_torrent_as_done(session: requests.Session, torrent_hash: str) -> None:
     logging.info(f"Marked torrent with hash {repr(torrent_hash)} as done")
 
 
-def update_nextcloud_file(session: requests.Session, torrent_hash: str) -> None:
+def update_nextcloud_files() -> None:
     nextcloud_user = str(os.environ.get("NEXTCLOUD_USER"))
     nextcloud_rel_downloads_path = str(os.environ.get("NEXTCLOUD_REL_DOWNLOADS_PATH"))
     nextcloud_container_name = str(os.environ.get("NEXTCLOUD_CONTAINER_NAME"))
@@ -101,14 +101,20 @@ def update_nextcloud_file(session: requests.Session, torrent_hash: str) -> None:
 
 
 def run_forever():
+    logging.info("Starting run")
     check_env()
+    logging.info("Env check passed")
+    session_start = time.time()
+    session = get_login_session()  # Expires after 60m
     while True:
-        logging.info("Starting run")
-        session = get_login_session()  # TODO this probably expires someday
+        if time.time() - session_start > 3300:  # 55m
+            session = get_login_session()
+            session_start = time.time()
         torrents = get_completed_torrents(session)
         for torrent in torrents:
             mark_torrent_as_done(session, torrent["hash"])
-            update_nextcloud_file(session, torrent["hash"])
+        if torrents:
+            update_nextcloud_files()
         logging.info("Finished run")
         time.sleep(60)
 
