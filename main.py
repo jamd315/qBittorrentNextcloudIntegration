@@ -7,6 +7,7 @@ import time
 from typing import List, Dict, Any, Optional
 
 import docker
+import docker.errors
 import requests
 from docker.models.containers import Container
 
@@ -38,7 +39,7 @@ def check_env() -> None:
         "QBITTORRENT_PASSWORD",
         "QBITTORRENT_DONE_TAG",
         "NEXTCLOUD_USER",
-        "NEXTCLOUD_REL_DOWNLOADS_PATH",
+        "NEXTCLOUD_REL_PATH",
         "NEXTCLOUD_CONTAINER_NAME"
     ]
     for env_var in expected_env_vars:
@@ -94,23 +95,33 @@ def mark_torrent_as_done(session: requests.Session, torrent_hash: str) -> None:
 
 def update_nextcloud_files() -> None:
     nextcloud_user = str(os.environ.get("NEXTCLOUD_USER"))
-    nextcloud_rel_downloads_path = str(os.environ.get("NEXTCLOUD_REL_DOWNLOADS_PATH"))
+    nextcloud_rel_path = str(os.environ.get("NEXTCLOUD_REL_PATH"))
     nextcloud_container_name = str(os.environ.get("NEXTCLOUD_CONTAINER_NAME"))
+    if ".." in nextcloud_rel_path:
+        logging.error("Relative path in NEXTCLOUD_REL_PATH")
+        raise ValueError("Relative path in NEXTCLOUD_REL_PATH")
+    while nextcloud_rel_path.startswith("/"):
+        nextcloud_rel_path = nextcloud_rel_path[1:]
 
     occ_path = "/var/www/html/occ"
-    rescan_path = os.path.join("var", "www", "html", "data", nextcloud_user, "files", nextcloud_rel_downloads_path)
+    rescan_path = os.path.join(nextcloud_user, "files", nextcloud_rel_path)
 
     client = docker.from_env()
-    container = client.containers.get("nextcloud")
+    try:
+        container = client.containers.get(nextcloud_container_name)
+    except docker.errors.NotFound as e:
+        logging.info(f"Container {repr(nextcloud_container_name)} not found")
+        raise e
     if container is None or not isinstance(container, Container):  # Yay for Any typing
-        logging.error(f"Failed to find container {nextcloud_container_name}")
-        raise Exception(f"Failed to find container {nextcloud_container_name}")
+        logging.error(f"Container {repr(nextcloud_container_name)} is None")
+        raise Exception(f"Container {repr(nextcloud_container_name)} is None")
     rescan_command = shlex.join([occ_path, "files:scan", "--path", rescan_path])  # Ideally the bare minimum of sanitizing
+    logging.info(f"Command {repr(rescan_command)} issued")
     retval = container.exec_run(rescan_command, user="www-data")
     if retval.exit_code != 0:
         logging.error(f"Failed to rescan {rescan_path}: {retval.output[:100]}")
         raise Exception(f"Failed to rescan {rescan_path}")
-    logging.info("Rescan command sent")
+    logging.info(f"Rescan success")
 
 
 def run_forever():
