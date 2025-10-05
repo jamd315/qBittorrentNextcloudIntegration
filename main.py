@@ -4,12 +4,13 @@ import os
 import shlex
 import signal
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Iterator, TypeVar
 
 import docker
 import docker.errors
 import requests
 from docker.models.containers import Container
+T = TypeVar("T")
 
 
 log_level_str = str(os.environ.get("LOG_LEVEL", "INFO")).upper().strip()
@@ -54,6 +55,16 @@ RUN_FLAG = True
 signal.signal(signal.SIGTERM, exit_handler)
 
 
+def _backoff(values: List[T]) -> Iterator[T]:
+    """
+    Generator to yield all elements of a list, then always yield the last one
+    """
+    for v in values:
+        yield v
+    while True:
+        yield values[-1]
+
+
 def check_env() -> None:
     """
     Check that all of the environment variables that are required to run are
@@ -72,9 +83,18 @@ def check_env() -> None:
         if env_var not in os.environ:
             logging.error(f"Missing environment variable {env_var}")
             raise Exception(f"Missing environment variable {env_var}")
-    r = requests.get(BASE_URL)
-    if r.status_code != 200:
-        logging.error(f"Could not connect to qBittorrent: {r.text[:100]}")
+    for delay in _backoff([5, 10, 30]):
+        try:
+            r = requests.get(BASE_URL)
+            if r.status_code == 200:
+                break
+        except requests.exceptions.SSLError:
+            pass
+        logging.error(f"Could not connect to qBittorrent: {r.text[:100].strip()}, trying again in {delay}s")
+        t1 = time.time()
+        while RUN_FLAG and time.time() - t1 < delay:
+            time.sleep(1)
+    else:
         raise Exception("Could not connect to qBittorrent")
 
 
