@@ -34,16 +34,23 @@ logging.basicConfig(
     ]
 )
 
+# Make the URL that's used for all requests
 BASE_URL = str(os.environ.get("QBITTORRENT_URL", ""))
 if not BASE_URL.startswith("http://") or not BASE_URL.startswith("https://"):
+    logging.warning("QBITTORRENT_URL doesn't specify a protocol, defaulting to plaint http")
     BASE_URL = "http://" + BASE_URL
 
-RUN_FLAG = True
 
+# Set up docker exit stuff
 def exit_handler(sig, frame) -> None:
+    """
+    Receive the signal from docker that this container should exit
+    """
     logging.info("Received exit signal")
+    global RUN_FLAG
     RUN_FLAG = False
 
+RUN_FLAG = True
 signal.signal(signal.SIGTERM, exit_handler)
 
 
