@@ -139,8 +139,7 @@ def mark_torrent_as_done(session: requests.Session, torrent_hash: str) -> None:
 
 def update_nextcloud_files() -> None:
     """
-    Update the nextcloud files, affected by the tags of the torrent causing
-    the update to happen
+    Update the nextcloud files
     """
     nextcloud_user = str(os.environ.get("NEXTCLOUD_USER"))
     nextcloud_rel_path = str(os.environ.get("NEXTCLOUD_REL_PATH"))
