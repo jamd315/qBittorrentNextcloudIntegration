@@ -55,6 +55,10 @@ signal.signal(signal.SIGTERM, exit_handler)
 
 
 def check_env() -> None:
+    """
+    Check that all of the environment variables that are required to run are
+    present
+    """
     expected_env_vars = [
         "QBITTORRENT_URL",
         "QBITTORRENT_USERNAME",
@@ -75,6 +79,11 @@ def check_env() -> None:
 
 
 def get_login_session() -> requests.Session:
+    """
+    Log in to qbittorrent using the environment variables QBITTORRENT_URL, 
+    QBITTORRENT_USERNAME, and QBITTORRENT_PASSWORD.  Return a `requests` session
+    object
+    """
     session = requests.Session()
     data = {
         "username": os.environ.get("QBITTORRENT_USERNAME"),
@@ -89,20 +98,33 @@ def get_login_session() -> requests.Session:
 
 
 def get_completed_torrents(session: requests.Session) -> List[Dict[str, Any]]:
+    """
+    Poll the passed session and return the list of torrents that are completed,
+    but not yet scanned on nextcloud
+    """
+    # No tag filter here because I want the program to work regardless of if
+    # the user already uses tags
     params = {
-        "filter": "completed",
-        "tag": ""
+        "filter": "completed"
     }
     r = session.get(f"{BASE_URL}/api/v2/torrents/info", params=params)
     if r.status_code != 200:
         logging.error(f"Could not get completed torrents: {r.text[:100]}")
         raise Exception("Could not get completed torrents")
+    done_tag = str(os.environ.get("QBITTORRENT_DONE_TAG"))
     torrents = r.json()
-    logging.info(f"Found {len(torrents)} completed torrents")
+    torrents = [t for t in torrents if done_tag not in t["tags"]]
+    if len(torrents) > 0:
+        logging.info(f"Found {len(torrents)} completed untracked torrent(s)")
+    else:
+        logging.debug(f"Found no completed untracked torrents")
     return torrents
 
 
 def mark_torrent_as_done(session: requests.Session, torrent_hash: str) -> None:
+    """
+    Tag a torrent as being scanned into nextcloud
+    """
     done_tag = str(os.environ.get("QBITTORRENT_DONE_TAG"))
     data = {
         "hashes": torrent_hash,
@@ -116,6 +138,10 @@ def mark_torrent_as_done(session: requests.Session, torrent_hash: str) -> None:
 
 
 def update_nextcloud_files() -> None:
+    """
+    Update the nextcloud files, affected by the tags of the torrent causing
+    the update to happen
+    """
     nextcloud_user = str(os.environ.get("NEXTCLOUD_USER"))
     nextcloud_rel_path = str(os.environ.get("NEXTCLOUD_REL_PATH"))
     nextcloud_container_name = str(os.environ.get("NEXTCLOUD_CONTAINER_NAME"))
@@ -134,10 +160,12 @@ def update_nextcloud_files() -> None:
     except docker.errors.NotFound as e:
         logging.info(f"Container {repr(nextcloud_container_name)} not found")
         raise e
-    if container is None or not isinstance(container, Container):  # Yay for Any typing
+    # Yay for Any typing
+    if container is None or not isinstance(container, Container):
         logging.error(f"Container {repr(nextcloud_container_name)} is None")
         raise Exception(f"Container {repr(nextcloud_container_name)} is None")
-    rescan_command = shlex.join([occ_path, "files:scan", "--path", rescan_path])  # Ideally the bare minimum of sanitizing
+    # Ideally the bare minimum of sanitizing
+    rescan_command = shlex.join([occ_path, "files:scan", "--path", rescan_path])
     logging.info(f"Command {repr(rescan_command)} issued")
     retval = container.exec_run(rescan_command, user="www-data")
     if retval.exit_code != 0:
@@ -165,7 +193,7 @@ def run_forever():
                 update_nextcloud_files()
             last_run = time.time()
         time.sleep(1)  # Fast-ish loop so we can exit
-    print("Exiting...")
+    logging.warning("Loop exited, program halting")
 
 
 if __name__ == "__main__":
