@@ -11,8 +11,23 @@ import docker.errors
 import requests
 from docker.models.containers import Container
 
+
+log_level_str = str(os.environ.get("LOG_LEVEL", "INFO")).upper().strip()
+match log_level_str:
+    case "DEBUG":
+        log_level = logging.DEBUG
+    case "INFO":
+        log_level = logging.INFO
+    case "WARNING":
+        log_level = logging.WARNING
+    case "ERROR":
+        log_level = logging.ERROR
+    case "CRITICAL":
+        log_level = logging.CRITICAL
+    case _:
+        log_level = logging.NOTSET
 logging.basicConfig(
-    level=logging.INFO,
+    level=log_level,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler()

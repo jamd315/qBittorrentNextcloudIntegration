@@ -9,3 +9,4 @@
 * `NEXTCLOUD_USER`  The nextcloud user with the downloads path
 * `NEXTCLOUD_REL_DOWNLOADS_PATH`  The relative path within the `NEXTCLOUD_USER`'s files.
 * `NEXTCLOUD_CONTAINER_NAME`  The container name that is nextcloud, defaults to "nextcloud".
+* `LOG_LEVEL`  The log level, defaults to "INFO".  Valid options are "DEBUG", "INFO", "WARNING", "ERROR", and "CRITICAL".
