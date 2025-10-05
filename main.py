@@ -37,7 +37,7 @@ logging.basicConfig(
 # Make the URL that's used for all requests
 BASE_URL = str(os.environ.get("QBITTORRENT_URL", ""))
 if not BASE_URL.startswith("http://") or not BASE_URL.startswith("https://"):
-    logging.warning("QBITTORRENT_URL doesn't specify a protocol, defaulting to plaint http")
+    logging.warning("QBITTORRENT_URL doesn't specify a protocol, defaulting to http")
     BASE_URL = "http://" + BASE_URL
 
 
